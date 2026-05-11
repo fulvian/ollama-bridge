@@ -25,7 +25,10 @@ def test_load_config_missing_file_returns_defaults(tmp_path):
     cfg = load_config(tmp_path / "nonexistent.yaml")
     assert cfg.proxy.port == 7177
     assert cfg.plan.tokens_per_5h == 88000
-    assert cfg.thresholds.session_5h == 0.70
+    assert cfg.thresholds.session_5h == 0.90
+    assert cfg.thresholds.session_5h_early == 0.75
+    assert cfg.thresholds.weekly_7d == 0.95
+    assert cfg.thresholds.weekly_7d_early == 0.80
     assert "default" in cfg.model_mapping
     assert cfg.fallback_behavior == "warn_then_anthropic"
 

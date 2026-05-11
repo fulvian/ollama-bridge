@@ -62,7 +62,7 @@ Claude Code punta a `http://localhost:7177` via `ANTHROPIC_BASE_URL`. Il proxy d
 - Ollama daemon locale in esecuzione (`systemctl --user status ollama`)
 - Ollama Pro plan (cloud models: `deepseek-v4-pro:cloud`, `ministral-3:cloud`)
 - Claude Code Pro Max 5x
-- `ANTHROPIC_API_KEY` in ambiente shell
+- Token OAuth Claude Code (forwarded automaticamente — non serve `ANTHROPIC_API_KEY`)
 - `OLLAMA_API_KEY` nell'ambiente del daemon Ollama (per routing cloud)
 
 ---
@@ -98,4 +98,5 @@ Non leggere l'intera wiki — usa il page directory come mappa.
 
 | Data | Incidente | Handoff | Stato |
 |------|-----------|---------|-------|
-| 2026-05-11 | Crash-loop systemd blocca Claude Code | `docs/handoff/bridge-recovery-2026-05-11.md` | Bridge disabilitato, 3 problemi da risolvere |
+| 2026-05-11 | Secondo crash: Ollama 503 → resource leak → ZlibError Claude Code | `docs/llm_wiki/wiki/log.md` | Codice fixato (49/49 test). Bridge non abilitato. Attivazione: protocollo 3-step in `installation.md` |
+| 2026-05-11 | Crash-loop systemd blocca Claude Code | `docs/handoff/bridge-recovery-2026-05-11.md` | Bridge disabilitato, fix applicati (OAuth pass-through, -m proxy.server, symlink) |

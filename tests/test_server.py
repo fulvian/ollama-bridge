@@ -98,7 +98,7 @@ async def test_force_ollama_override_routes_to_ollama(client, cfg, monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     override_path = Path(cfg.state_file).parent / "override"
     override_path.write_text("ollama")
-    respx.post("http://localhost:11434/v1/messages").mock(
+    respx.post("https://ollama.com/v1/messages").mock(
         return_value=httpx.Response(200, content=b"data: [DONE]\n\n")
     )
     body = {"model": "claude-sonnet-4-6", "messages": [], "max_tokens": 10}
@@ -109,6 +109,22 @@ async def test_force_ollama_override_routes_to_ollama(client, cfg, monkeypatch):
 
 
 @respx.mock
+@respx.mock
+async def test_both_upstreams_fail_returns_502(client, cfg, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    override_path = Path(cfg.state_file).parent / "override"
+    override_path.write_text("ollama")
+    respx.post("https://ollama.com/v1/messages").mock(
+        side_effect=httpx.ConnectError("Connection refused")
+    )
+    respx.post("https://api.anthropic.com/v1/messages").mock(
+        side_effect=httpx.ConnectError("Connection refused")
+    )
+    body = {"model": "claude-sonnet-4-6", "messages": [], "max_tokens": 10}
+    resp = await client.post("/v1/messages", json=body)
+    assert resp.status == 502
+
+
 async def test_no_override_file_uses_threshold_logic(client, cfg, monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     override_path = Path(cfg.state_file).parent / "override"

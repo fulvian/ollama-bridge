@@ -14,11 +14,10 @@ class RequestRouter:
     def __init__(self, cfg: Config):
         self._cfg = cfg
 
-    async def forward_anthropic(self, body: dict, api_key: str) -> RouteResult:
+    async def forward_anthropic(self, body: dict, auth_header: str) -> RouteResult:
         url = f"{self._cfg.anthropic.base_url}/v1/messages"
         headers = {
-            "Authorization": f"Bearer {api_key}",
-            "x-api-key": api_key,
+            "Authorization": auth_header,
             "anthropic-version": "2023-06-01",
             "content-type": "application/json",
         }
@@ -29,23 +28,25 @@ class RequestRouter:
         rewritten = {**body, "model": ollama_model}
         url = f"{self._cfg.ollama.url}/v1/messages"
         headers = {
-            "Authorization": f"Bearer {self._cfg.ollama.auth_token}",
+            "Authorization": f"Bearer {self._cfg.ollama_api_key}",
+            "anthropic-version": "2023-06-01",
             "content-type": "application/json",
         }
         return await _open_stream(url, headers, rewritten)
 
     async def forward_with_fallback(
-        self, body: dict, claude_model: str, api_key: str
+        self, body: dict, claude_model: str, auth_header: str
     ) -> tuple[RouteResult, bool]:
         """Returns (RouteResult, fell_back). fell_back=True means Ollama failed."""
         try:
             status, hdrs, chunks = await self.forward_ollama(body, claude_model)
             if status >= 500:
+                await chunks.aclose()  # release Ollama connection before opening Anthropic
                 raise RuntimeError(f"Ollama returned HTTP {status}")
             return (status, hdrs, chunks), False
         except Exception as exc:
             logger.warning("Ollama unavailable (%s); falling back to Anthropic", exc)
-            result = await self.forward_anthropic(body, api_key)
+            result = await self.forward_anthropic(body, auth_header)
             return result, True
 
 

@@ -4,7 +4,7 @@ kind: operational
 status: active
 created: 2026-05-11
 last_updated: 2026-05-11
-confidence: medium
+confidence: high
 sources:
   - docs/plans/ollama-claude_foundation_blueprint_1.md (read 2026-05-11)
   - docs/handoff/bridge-recovery-2026-05-11.md (read 2026-05-11)
@@ -143,31 +143,110 @@ systemctl --user status ollama-bridge
 journalctl --user -u ollama-bridge -f   # log live
 ```
 
+## Protocollo Attivazione Bridge (3 Step Obbligatori)
+
+> **REGOLA ASSOLUTA**: MAI aggiungere `ANTHROPIC_BASE_URL` a `settings.json` senza aver superato i 3 step. In caso contrario Claude Code smette di funzionare.
+
+### Step 1 — Avvia e verifica servizio
+
+```bash
+systemctl --user start ollama-bridge
+systemctl --user status ollama-bridge
+# Deve mostrare: active (running)
+# Deve mostrare nella log: "Running on http://127.0.0.1:7177"
+```
+
+Se non attivo: `journalctl --user -u ollama-bridge -n 50` per diagnosi.
+
+### Step 2 — Test health endpoint
+
+```bash
+curl http://localhost:7177/health
+# Deve rispondere: {"status": "ok"}
+```
+
+Se non risponde: bridge non partito, non procedere.
+
+### Step 3 — Test con token OAuth reale
+
+Questo step verifica che il bridge forwardi correttamente sia verso Ollama che (in fallback) verso Anthropic con il token OAuth di Claude Code.
+
+```bash
+# Estrai token dalla sessione Claude Code attiva:
+# Il token è nell'header Authorization che Claude Code manda al bridge.
+# Modo pratico: avvia bridge, fai una richiesta da Claude Code, leggi i log:
+journalctl --user -u ollama-bridge -f
+# poi in altro terminale apri una sessione Claude Code (con ANTHROPIC_BASE_URL settato)
+# e scrivi un messaggio breve — verifica nei log che arrivi e venga instradata
+
+# Oppure usa ollama-bridge test (se implementato):
+ollama-bridge test
+```
+
+**Output atteso nei log bridge:**
+```
+POST /v1/messages → routing=ollama, status=200
+```
+oppure in fallback:
+```
+Ollama unavailable (...); falling back to Anthropic
+POST /v1/messages → routing=anthropic, status=200
+```
+
+Se step 3 OK → procedi.
+
+### Step 4 — Abilita in settings.json
+
+Solo dopo step 1-3 superati:
+
+```bash
+# Aggiungi manualmente a ~/.claude/settings.json:
+# "env": { "ANTHROPIC_BASE_URL": "http://localhost:7177" },
+# "hooks": { "UserPromptSubmit": [{ "matcher": "", "hooks": [{ "type": "command", "command": "~/.config/ollama-bridge/hooks/usage_inject.sh" }] }] }
+
+# Abilita auto-start:
+systemctl --user enable ollama-bridge
+```
+
+### Recovery d'emergenza
+
+Se Claude Code smette di rispondere dopo aver abilitato il bridge:
+
+```bash
+systemctl --user stop ollama-bridge
+# Rimuovi da ~/.claude/settings.json: env.ANTHROPIC_BASE_URL e hooks.UserPromptSubmit
+# Riavvia Claude Code
+```
+
+---
+
 ## Known Issues
 
-### Spazi nei path di sistema
+### Spazio nel path di progetto
 
-**Systemd non supporta spazi non quotati in `ExecStart` e `WorkingDirectory`.** Se il progetto è clonato in un path con spazi (es. `/home/fulvio/coding/ollama claude/`), il servizio crasha con `can't open file '/home/fulvio/coding/ollama'` perché systemd splitta sul primo spazio.
+**Systemd non supporta spazi non quotati in `WorkingDirectory`.** Il progetto risiede in `/home/fulvio/coding/ollama claude/` (con spazio).
 
-**Workaround:** Clonare sempre in un path senza spazi (es. `~/coding/ollama-bridge/`), oppure creare symlink: `ln -s "/path/with spaces" /path/without-spaces`.
+**Fix applicato:** symlink `/home/fulvio/coding/ollama-claude` → `/home/fulvio/coding/ollama claude`. L'unit file usa `WorkingDirectory=/home/fulvio/coding/ollama-claude`.
 
-**Fix nell'unit file:**
-- `ExecStart` con quote: `ExecStart=/usr/bin/python3 -u "/path/with spaces/proxy/server.py"` — funziona dopo systemd v240
-- `WorkingDirectory` NON supporta quote né `\x20` — serve symlink o rename directory
-- Alternativa: usare `python3 -m proxy.server` con WorkingDirectory via symlink
+**Se symlink mancante:**
+```bash
+ln -s "/home/fulvio/coding/ollama claude" /home/fulvio/coding/ollama-claude
+```
 
-### OAuth vs API Key
+### OAuth — risolto
 
-**Claude Code con OAuth web (Pro Max 5x) non fornisce `ANTHROPIC_API_KEY`.** Il bridge richiede questa variabile per forwardare ad Anthropic. Senza, risponde `401 ANTHROPIC_API_KEY not set`.
+~~Claude Code con OAuth web non fornisce `ANTHROPIC_API_KEY`.~~ **Risolto** (2026-05-11): il bridge legge l'header `Authorization` dalla richiesta in ingresso da Claude Code e lo forwarda ad Anthropic. Non serve `ANTHROPIC_API_KEY`.
 
-**Soluzioni:**
-1. Ottenere una API key dal [dashboard Anthropic](https://console.anthropic.com/) e aggiungerla a `~/.config/ollama-bridge/env`
-2. Modificare il bridge per propagare l'OAuth token invece dell'API key
-3. Usare il bridge solo per routing Ollama, con Anthropic come fallback diretto
+### Ollama overloaded (503)
 
-### Riferimento incidente
+Ollama cloud risponde `503 overloaded_error` sotto carico. Il bridge ora:
+1. Chiude la connessione Ollama pulitamente (`chunks.aclose()`)
+2. Fa fallback ad Anthropic con OAuth token
+3. Se anche Anthropic fallisce → restituisce `502` pulito a Claude Code (no risposta corrotta)
 
-Diagnosi completa: `docs/handoff/bridge-recovery-2026-05-11.md`
+### Riferimento incidenti
+
+- Primo incidente: `docs/handoff/bridge-recovery-2026-05-11.md`
 
 ---
 

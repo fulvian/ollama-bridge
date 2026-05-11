@@ -21,7 +21,7 @@ async def test_forward_anthropic_status_200(router):
         )
     )
     body = {"model": "claude-sonnet-4-6", "messages": [{"role": "user", "content": "hi"}], "max_tokens": 10}
-    status, _headers, chunks = await router.forward_anthropic(body, api_key="sk-test")
+    status, _headers, chunks = await router.forward_anthropic(body, auth_header="Bearer sk-test")
     assert status == 200
     collected = b"".join([chunk async for chunk in chunks])
     assert b"message_start" in collected
@@ -33,10 +33,9 @@ async def test_forward_anthropic_sends_auth_headers(router):
         return_value=httpx.Response(200, content=b"data: [DONE]\n\n")
     )
     body = {"model": "claude-sonnet-4-6", "messages": [], "max_tokens": 10}
-    await router.forward_anthropic(body, api_key="sk-test-key")
+    await router.forward_anthropic(body, auth_header="Bearer sk-test-key")
     req = route.calls[0].request
     assert req.headers["authorization"] == "Bearer sk-test-key"
-    assert req.headers["x-api-key"] == "sk-test-key"
     assert req.headers["anthropic-version"] == "2023-06-01"
 
 
@@ -46,14 +45,14 @@ async def test_forward_anthropic_body_unchanged(router):
         return_value=httpx.Response(200, content=b"data: [DONE]\n\n")
     )
     body = {"model": "claude-sonnet-4-6", "messages": [{"role": "user", "content": "test"}], "max_tokens": 5}
-    await router.forward_anthropic(body, api_key="sk-test")
+    await router.forward_anthropic(body, auth_header="Bearer sk-test")
     sent = json.loads(route.calls[0].request.content)
     assert sent == body
 
 
 @respx.mock
 async def test_forward_ollama_rewrites_model_name(router):
-    route = respx.post("http://localhost:11434/v1/messages").mock(
+    route = respx.post("https://ollama.com/v1/messages").mock(
         return_value=httpx.Response(200, content=b"data: [DONE]\n\n")
     )
     body = {"model": "claude-sonnet-4-6", "messages": [], "max_tokens": 10}
@@ -65,49 +64,49 @@ async def test_forward_ollama_rewrites_model_name(router):
 
 @respx.mock
 async def test_forward_ollama_haiku_uses_small_model(router):
-    route = respx.post("http://localhost:11434/v1/messages").mock(
+    route = respx.post("https://ollama.com/v1/messages").mock(
         return_value=httpx.Response(200, content=b"data: [DONE]\n\n")
     )
     body = {"model": "claude-haiku-4-5-20251001", "messages": [], "max_tokens": 10}
     await router.forward_ollama(body, claude_model="claude-haiku-4-5-20251001")
     sent = json.loads(route.calls[0].request.content)
-    assert sent["model"] == "ministral-3:cloud"
+    assert sent["model"] == "deepseek-v4-flash:cloud"
 
 
 @respx.mock
 async def test_fallback_on_connection_error(router):
-    respx.post("http://localhost:11434/v1/messages").mock(
+    respx.post("https://ollama.com/v1/messages").mock(
         side_effect=httpx.ConnectError("Connection refused")
     )
     respx.post("https://api.anthropic.com/v1/messages").mock(
         return_value=httpx.Response(200, content=b"data: [DONE]\n\n")
     )
     body = {"model": "claude-sonnet-4-6", "messages": [], "max_tokens": 10}
-    (status, _h, _c), fell_back = await router.forward_with_fallback(body, "claude-sonnet-4-6", "sk-test")
+    (status, _h, _c), fell_back = await router.forward_with_fallback(body, "claude-sonnet-4-6", "Bearer sk-test")
     assert fell_back is True
     assert status == 200
 
 
 @respx.mock
 async def test_fallback_on_5xx_response(router):
-    respx.post("http://localhost:11434/v1/messages").mock(
+    respx.post("https://ollama.com/v1/messages").mock(
         return_value=httpx.Response(503, content=b"service unavailable")
     )
     respx.post("https://api.anthropic.com/v1/messages").mock(
         return_value=httpx.Response(200, content=b"data: [DONE]\n\n")
     )
     body = {"model": "claude-sonnet-4-6", "messages": [], "max_tokens": 10}
-    (status, _h, _c), fell_back = await router.forward_with_fallback(body, "claude-sonnet-4-6", "sk-test")
+    (status, _h, _c), fell_back = await router.forward_with_fallback(body, "claude-sonnet-4-6", "Bearer sk-test")
     assert fell_back is True
     assert status == 200
 
 
 @respx.mock
 async def test_no_fallback_when_ollama_healthy(router):
-    respx.post("http://localhost:11434/v1/messages").mock(
+    respx.post("https://ollama.com/v1/messages").mock(
         return_value=httpx.Response(200, content=b"data: [DONE]\n\n")
     )
     body = {"model": "claude-sonnet-4-6", "messages": [], "max_tokens": 10}
-    (status, _h, _c), fell_back = await router.forward_with_fallback(body, "claude-sonnet-4-6", "sk-test")
+    (status, _h, _c), fell_back = await router.forward_with_fallback(body, "claude-sonnet-4-6", "Bearer sk-test")
     assert fell_back is False
     assert status == 200

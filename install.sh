@@ -6,8 +6,16 @@ CONFIG_DIR="$HOME/.config/ollama-bridge"
 
 echo "Installing OllamaBridge from $INSTALL_DIR"
 
-pip install -r "$INSTALL_DIR/requirements.txt" --quiet
-echo "  [OK] Python deps"
+if python3 -c "import aiohttp, httpx, yaml" 2>/dev/null; then
+    echo "  [OK] Python deps (already installed system-wide)"
+else
+    VENV="$INSTALL_DIR/.venv"
+    python3 -m venv "$VENV"
+    "$VENV/bin/pip" install -r "$INSTALL_DIR/requirements.txt" --quiet
+    PYTHON3="$VENV/bin/python3"
+    echo "  [OK] Python deps (venv at $VENV)"
+fi
+PYTHON3="${PYTHON3:-python3}"
 
 mkdir -p "$CONFIG_DIR"
 chmod 700 "$CONFIG_DIR"
@@ -25,20 +33,21 @@ echo "  [OK] Hook installed"
 
 SYSTEMD_DIR="$HOME/.config/systemd/user"
 mkdir -p "$SYSTEMD_DIR"
-sed "s|/path/to/ollama-bridge|$INSTALL_DIR|g" \
+sed -e "s|/path/to/ollama-bridge|$INSTALL_DIR|g" \
+    -e "s|/path/to/python3|$(which "$PYTHON3")|g" \
     "$INSTALL_DIR/ollama-bridge.service" > "$SYSTEMD_DIR/ollama-bridge.service"
 systemctl --user daemon-reload
 systemctl --user enable ollama-bridge
 systemctl --user start ollama-bridge
 echo "  [OK] systemd service started"
 
-python3 "$INSTALL_DIR/scripts/patch_claude_settings.py"
+"$PYTHON3" "$INSTALL_DIR/scripts/patch_claude_settings.py"
 echo "  [OK] ~/.claude/settings.json patched"
 
 echo ""
 echo "REQUIRED:"
 echo "  echo 'ANTHROPIC_API_KEY=sk-ant-...' > $CONFIG_DIR/env && chmod 600 $CONFIG_DIR/env"
-echo "  Verify OLLAMA_API_KEY is set in Ollama daemon environment"
+echo "  Set OLLAMA_API_KEY in $CONFIG_DIR/env if using Ollama Cloud"
 echo "  Edit $CONFIG_DIR/config.yaml if plan limits differ"
 echo ""
 echo "Verify: python3 $INSTALL_DIR/cli.py status"

@@ -7,18 +7,22 @@ plan:
   tokens_per_week: 500000    # weekly budget estimate; adjust to actual plan
 
 thresholds:
-  session_5h: 0.70           # route to Ollama when 5h window > 70%
-  weekly_7d: 0.75            # route to Ollama when weekly > 75%
+  # Tier 1 — partial: haiku → deepseek-v4-flash, opus/sonnet stay on Anthropic
+  session_5h_early: 0.75     # at 75% of 5h budget
+  weekly_7d_early: 0.80      # at 80% of weekly budget
+  # Tier 2 — full: ALL models → Ollama
+  session_5h: 0.90           # at 90% of 5h budget
+  weekly_7d: 0.95            # at 95% of weekly budget
 
 model_mapping:
   claude-opus-4-7: deepseek-v4-pro:cloud
   claude-sonnet-4-6: deepseek-v4-pro:cloud
-  claude-haiku-4-5-20251001: ministral-3:cloud
+  claude-haiku-4-5-20251001: deepseek-v4-flash:cloud
   default: deepseek-v4-pro:cloud
 
 ollama:
-  url: http://localhost:11434
-  auth_token: ollama           # dummy; Ollama does not validate
+  url: https://ollama.com
+  api_key_env: OLLAMA_API_KEY  # key read from ~/.config/ollama-bridge/env
 
 anthropic:
   base_url: https://api.anthropic.com

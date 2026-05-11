@@ -13,6 +13,26 @@ Append-only. Entries più recenti in cima. Non modificare entry passate.
 
 ---
 
+## 2026-05-11 — UPDATE: Fix robustezza bridge + protocollo attivazione
+
+**Operazione:** UPDATE — bug fix post-secondo-incidente  
+**Trigger:** Bridge abilitato prematuramente senza verifica end-to-end → Ollama overloaded (503) → fallback Anthropic → `httpx.ReadError` durante streaming → Claude Code riceve risposta corrotta (ZlibError)
+
+**Root cause — 2 bug codice:**
+1. **Resource leak**: `forward_with_fallback` rileva status 503 da Ollama e solleva RuntimeError SENZA chiudere la connessione httpx → client aperta quando si apre stream Anthropic → `ReadError`
+2. **Streaming non protetto**: dopo `stream.prepare(request)` (headers già inviati) nessun try/except nel loop → crash mid-stream → risposta tronca → ZlibError in Claude Code
+
+**Fix applicati:**
+- `proxy/request_router.py`: `await chunks.aclose()` prima di `raise RuntimeError` in `forward_with_fallback` — chiude connessione Ollama prima di aprire Anthropic
+- `proxy/server.py`: routing block in try/except → 502 pulito se tutti gli upstream falliscono (prima dell'`stream.prepare`). Streaming loop in try/except/finally → `write_eof()` garantito anche su errore
+- `tests/test_server.py`: aggiunto `test_both_upstreams_fail_returns_502`
+
+**Stato attuale:** 49/49 test pass. Bridge codice OK ma **NON abilitato**. `settings.json` pulito. Servizio inactive.
+
+**Prossimo passo obbligatorio:** protocollo attivazione 3-step (vedi `installation.md`)
+
+---
+
 ## 2026-05-11 — INCIDENT: Crash-loop systemd — Claude Code bloccato worldwide
 
 **Operazione:** INCIDENT — recovery + root cause analysis  

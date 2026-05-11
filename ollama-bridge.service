@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 /path/to/ollama-bridge/proxy/server.py
+ExecStart=/path/to/python3 /path/to/ollama-bridge/proxy/server.py
 WorkingDirectory=/path/to/ollama-bridge
 Restart=always
 RestartSec=3
