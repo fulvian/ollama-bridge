@@ -44,7 +44,7 @@ log_file: ~/.config/ollama-bridge/proxy.log
 
 @pytest.fixture
 def make_jsonl_entry():
-    def _make(input_tokens=100, cache_creation=0, cache_read=0, output_tokens=50,
+    def _make(input_tokens=100, cache_creation=0, cache_read=0, output_tokens=0,
                seconds_ago=60, model="claude-sonnet-4-6"):
         ts = (datetime.now(timezone.utc) - timedelta(seconds=seconds_ago)).isoformat()
         return json.dumps({
