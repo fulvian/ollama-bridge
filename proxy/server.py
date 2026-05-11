@@ -49,7 +49,11 @@ async def _messages(request: web.Request) -> web.StreamResponse:
 
     claude_model = body.get("model", "claude-sonnet-4-6")
     usage = tracker.get_usage()
-    use_ollama = should_route_ollama(usage, cfg)
+    force_override = _read_override(cfg)
+    if force_override:
+        use_ollama = (force_override == "ollama")
+    else:
+        use_ollama = should_route_ollama(usage, cfg)
 
     ollama_available = True
     fallback_reason = None
@@ -71,7 +75,7 @@ async def _messages(request: web.Request) -> web.StreamResponse:
     else:
         model_used = claude_model
 
-    _write_state(cfg, usage, routing, claude_model, model_used, ollama_available, fallback_reason)
+    _write_state(cfg, usage, routing, claude_model, model_used, ollama_available, fallback_reason, force_override)
 
     stream = web.StreamResponse(status=status)
     _copy_safe_headers(upstream_headers, stream)
@@ -89,6 +93,18 @@ def _copy_safe_headers(upstream: dict, response: web.StreamResponse) -> None:
             response.headers[key] = val
 
 
+def _read_override(cfg: Config) -> str | None:
+    override_path = Path(cfg.state_file).parent / "override"
+    try:
+        if override_path.exists():
+            val = override_path.read_text().strip().lower()
+            if val in ("anthropic", "ollama"):
+                return val
+    except OSError:
+        pass
+    return None
+
+
 def _write_state(
     cfg: Config,
     usage: UsageStats,
@@ -97,6 +113,7 @@ def _write_state(
     model_used: str,
     ollama_available: bool,
     fallback_reason: str | None,
+    force_override: str | None = None,
 ) -> None:
     pct_5h = usage.tokens_5h / cfg.plan.tokens_per_5h
     pct_7d = usage.tokens_7d / cfg.plan.tokens_per_week
@@ -110,6 +127,7 @@ def _write_state(
         "pct_7d": round(pct_7d, 4),
         "ollama_available": ollama_available,
         "fallback_reason": fallback_reason,
+        "force_override": force_override,
         "last_updated": datetime.now(timezone.utc).isoformat(),
     }
     state_path = Path(cfg.state_file)

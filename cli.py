@@ -96,6 +96,21 @@ def cmd_logs(_args) -> None:
     subprocess.run(["tail", "-f", str(log)])
 
 
+def cmd_force(args) -> None:
+    target = args.target
+    override_path = Path.home() / ".config/ollama-bridge/override"
+    if target == "off":
+        override_path.unlink(missing_ok=True)
+        print("Override removed — proxy uses threshold logic")
+    elif target in ("anthropic", "ollama"):
+        override_path.write_text(target)
+        print(f"Override set: all requests → {target}")
+        print("Remove with: ollama-bridge force off")
+    else:
+        print(f"Unknown target '{target}'. Use: anthropic | ollama | off")
+        sys.exit(1)
+
+
 def main() -> None:
     p = argparse.ArgumentParser(prog="ollama-bridge")
     sub = p.add_subparsers(dest="cmd")
@@ -103,8 +118,10 @@ def main() -> None:
     sub.add_parser("test")
     sub.add_parser("reload")
     sub.add_parser("logs")
+    force_p = sub.add_parser("force", help="Force routing: anthropic | ollama | off")
+    force_p.add_argument("target", choices=["anthropic", "ollama", "off"])
     args = p.parse_args()
-    dispatch = {"status": cmd_status, "test": cmd_test, "reload": cmd_reload, "logs": cmd_logs}
+    dispatch = {"status": cmd_status, "test": cmd_test, "reload": cmd_reload, "logs": cmd_logs, "force": cmd_force}
     fn = dispatch.get(args.cmd)
     if fn:
         fn(args)

@@ -76,3 +76,48 @@ async def test_malformed_json_returns_400(client, monkeypatch):
         headers={"content-type": "application/json"},
     )
     assert resp.status == 400
+
+
+@respx.mock
+async def test_force_anthropic_override_bypasses_threshold(client, cfg, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    override_path = Path(cfg.state_file).parent / "override"
+    override_path.write_text("anthropic")
+    respx.post("https://api.anthropic.com/v1/messages").mock(
+        return_value=httpx.Response(200, content=b"data: [DONE]\n\n")
+    )
+    body = {"model": "claude-sonnet-4-6", "messages": [], "max_tokens": 10}
+    await client.post("/v1/messages", json=body)
+    state = json.loads(cfg.state_file.read_text())
+    assert state["routing"] == "anthropic"
+    assert state["force_override"] == "anthropic"
+
+
+@respx.mock
+async def test_force_ollama_override_routes_to_ollama(client, cfg, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    override_path = Path(cfg.state_file).parent / "override"
+    override_path.write_text("ollama")
+    respx.post("http://localhost:11434/v1/messages").mock(
+        return_value=httpx.Response(200, content=b"data: [DONE]\n\n")
+    )
+    body = {"model": "claude-sonnet-4-6", "messages": [], "max_tokens": 10}
+    await client.post("/v1/messages", json=body)
+    state = json.loads(cfg.state_file.read_text())
+    assert state["routing"] == "ollama"
+    assert state["force_override"] == "ollama"
+
+
+@respx.mock
+async def test_no_override_file_uses_threshold_logic(client, cfg, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    override_path = Path(cfg.state_file).parent / "override"
+    if override_path.exists():
+        override_path.unlink()
+    respx.post("https://api.anthropic.com/v1/messages").mock(
+        return_value=httpx.Response(200, content=b"data: [DONE]\n\n")
+    )
+    body = {"model": "claude-sonnet-4-6", "messages": [], "max_tokens": 10}
+    await client.post("/v1/messages", json=body)
+    state = json.loads(cfg.state_file.read_text())
+    assert state["force_override"] is None
