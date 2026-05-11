@@ -1,0 +1,15 @@
+[Unit]
+Description=OllamaBridge — Claude Code to Ollama routing proxy
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /path/to/ollama-bridge/proxy/server.py
+WorkingDirectory=/path/to/ollama-bridge
+Restart=always
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=%h/.config/ollama-bridge/env
+
+[Install]
+WantedBy=default.target
