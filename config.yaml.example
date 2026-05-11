@@ -1,0 +1,32 @@
+proxy:
+  port: 7177
+  host: 127.0.0.1
+
+plan:
+  tokens_per_5h: 88000       # Pro Max 5x: ~88k tokens / 5h window
+  tokens_per_week: 500000    # weekly budget estimate; adjust to actual plan
+
+thresholds:
+  session_5h: 0.70           # route to Ollama when 5h window > 70%
+  weekly_7d: 0.75            # route to Ollama when weekly > 75%
+
+model_mapping:
+  claude-opus-4-7: deepseek-v4-pro:cloud
+  claude-sonnet-4-6: deepseek-v4-pro:cloud
+  claude-haiku-4-5-20251001: ministral-3:cloud
+  default: deepseek-v4-pro:cloud
+
+ollama:
+  url: http://localhost:11434
+  auth_token: ollama           # dummy; Ollama does not validate
+
+anthropic:
+  base_url: https://api.anthropic.com
+  api_key_env: ANTHROPIC_API_KEY
+
+fallback:
+  behavior: warn_then_anthropic  # warn_then_anthropic | silent_anthropic | block
+
+cache_refresh_seconds: 30
+state_file: ~/.config/ollama-bridge/state.json
+log_file: ~/.config/ollama-bridge/proxy.log
