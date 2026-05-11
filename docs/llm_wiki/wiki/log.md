@@ -13,6 +13,31 @@ Append-only. Entries più recenti in cima. Non modificare entry passate.
 
 ---
 
+## 2026-05-11 — INCIDENT: Crash-loop systemd — Claude Code bloccato worldwide
+
+**Operazione:** INCIDENT — recovery + root cause analysis  
+**Trigger:** Avvio `ollama-bridge.service` → crash-loop (90+ restart) → `ANTHROPIC_BASE_URL=http://localhost:7177` in `settings.json` → tutte le sessioni Claude Code bloccate con `ConnectionRefused`  
+**Risultato:** Bridge disabilitato, Claude Code ripristinato OAuth nativo. Diagnosi completa in `docs/handoff/bridge-recovery-2026-05-11.md`.
+
+**Root cause — 3 problemi:**
+1. **Spazio nel path** `ollama claude` → systemd `ExecStart` e `WorkingDirectory` non supportano spazi non quotati → `can't open file '/home/fulvio/coding/ollama'`
+2. **Module resolution** `ModuleNotFoundError: No module named 'proxy'` — `python3 proxy/server.py` mette `proxy/` su sys.path invece della root. Fix: `python3 -m proxy.server`
+3. **OAuth vs API Key** — Claude Code usa OAuth web (Pro Max 5x), il bridge si aspetta `ANTHROPIC_API_KEY` via env → 401 anche se partisse
+
+**Azioni immediate:**
+- `systemctl --user disable --now ollama-bridge`
+- Rimosso `ANTHROPIC_BASE_URL` e hook da `~/.claude/settings.json`
+- Creato symlink `/home/fulvio/coding/ollama-claude` → workaround spazio
+
+**Pagine wiki aggiornate:**
+- `log.md` — questa entry
+- `installation.md` — added Known Issues: space-in-path, OAuth limitation, handoff reference
+- `index.md` — added incidents section, handoff reference
+
+**Handoff:** `docs/handoff/bridge-recovery-2026-05-11.md` — diagnosi completa e fix richiesti
+
+---
+
 ## 2026-05-11 — UPDATE: Implementazione completa + correzioni wiki
 
 **Operazione:** UPDATE post-implementazione  

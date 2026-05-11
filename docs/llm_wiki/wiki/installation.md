@@ -7,7 +7,8 @@ last_updated: 2026-05-11
 confidence: medium
 sources:
   - docs/plans/ollama-claude_foundation_blueprint_1.md (read 2026-05-11)
-tags: [installation, systemd, setup, prerequisites]
+  - docs/handoff/bridge-recovery-2026-05-11.md (read 2026-05-11)
+tags: [installation, systemd, setup, prerequisites, known-issues]
 cross_refs: [[system-architecture]], [[config-reference]], [[hooks-integration]]
 ---
 
@@ -122,7 +123,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 /home/fulvio/coding/ollama-bridge/proxy/server.py
+ExecStart=/usr/bin/python3 -u -m proxy.server
 WorkingDirectory=/home/fulvio/coding/ollama-bridge
 Restart=always
 RestartSec=3
@@ -141,6 +142,34 @@ systemctl --user restart ollama-bridge
 systemctl --user status ollama-bridge
 journalctl --user -u ollama-bridge -f   # log live
 ```
+
+## Known Issues
+
+### Spazi nei path di sistema
+
+**Systemd non supporta spazi non quotati in `ExecStart` e `WorkingDirectory`.** Se il progetto è clonato in un path con spazi (es. `/home/fulvio/coding/ollama claude/`), il servizio crasha con `can't open file '/home/fulvio/coding/ollama'` perché systemd splitta sul primo spazio.
+
+**Workaround:** Clonare sempre in un path senza spazi (es. `~/coding/ollama-bridge/`), oppure creare symlink: `ln -s "/path/with spaces" /path/without-spaces`.
+
+**Fix nell'unit file:**
+- `ExecStart` con quote: `ExecStart=/usr/bin/python3 -u "/path/with spaces/proxy/server.py"` — funziona dopo systemd v240
+- `WorkingDirectory` NON supporta quote né `\x20` — serve symlink o rename directory
+- Alternativa: usare `python3 -m proxy.server` con WorkingDirectory via symlink
+
+### OAuth vs API Key
+
+**Claude Code con OAuth web (Pro Max 5x) non fornisce `ANTHROPIC_API_KEY`.** Il bridge richiede questa variabile per forwardare ad Anthropic. Senza, risponde `401 ANTHROPIC_API_KEY not set`.
+
+**Soluzioni:**
+1. Ottenere una API key dal [dashboard Anthropic](https://console.anthropic.com/) e aggiungerla a `~/.config/ollama-bridge/env`
+2. Modificare il bridge per propagare l'OAuth token invece dell'API key
+3. Usare il bridge solo per routing Ollama, con Anthropic come fallback diretto
+
+### Riferimento incidente
+
+Diagnosi completa: `docs/handoff/bridge-recovery-2026-05-11.md`
+
+---
 
 ## Disinstallazione
 

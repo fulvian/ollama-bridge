@@ -7,6 +7,7 @@ last_updated: 2026-05-11
 sources:
   - docs/plans/ollama-claude_foundation_blueprint_1.md (read 2026-05-11)
   - proxy/*.py, cli.py, hooks/usage_inject.sh (verified 2026-05-11)
+  - docs/handoff/bridge-recovery-2026-05-11.md (incident 2026-05-11)
 tags: [index, overview]
 ---
 
@@ -50,7 +51,7 @@ Claude Code punta a `http://localhost:7177` via `ANTHROPIC_BASE_URL`. Il proxy d
 | [[model-mapping]] | plan_reference | active | Tabella claude-* → ollama-*:cloud, rationale |
 | [[config-reference]] | operational | active | Tutti i campi config.yaml documentati |
 | [[hooks-integration]] | operational | active | Hook UserPromptSubmit, state.json, settings.json patch |
-| [[installation]] | operational | active | install.sh, systemd, prerequisiti |
+| [[installation]] | operational | active | install.sh, systemd, prerequisiti, known issues |
 | [[log]] | — | — | Changelog append-only |
 
 ---
@@ -90,3 +91,11 @@ Claude Code punta a `http://localhost:7177` via `ANTHROPIC_BASE_URL`. Il proxy d
 3. Leggi pagine specifiche al task corrente
 
 Non leggere l'intera wiki — usa il page directory come mappa.
+
+---
+
+## Incidenti & Handoff
+
+| Data | Incidente | Handoff | Stato |
+|------|-----------|---------|-------|
+| 2026-05-11 | Crash-loop systemd blocca Claude Code | `docs/handoff/bridge-recovery-2026-05-11.md` | Bridge disabilitato, 3 problemi da risolvere |
